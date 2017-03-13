@@ -97,6 +97,7 @@
     this.dx = 0;
     this.dy = 0;
     this.hasPosition = false;
+    this.isRotating = false;
 
     this.content = []; // array of content elements to display onclick;
 
@@ -146,6 +147,7 @@
       return;
     }
     this.moving = true;
+    //this.isRotating = true;
     this.obj.movementStopped = false;
     this.animateLoop();
   };
@@ -154,12 +156,28 @@
   Node.prototype.animateLoop = function () {
     var i, len, mynode = this;
     this.obj.canvas.clear();
+
     for (i = 0, len = this.obj.lines.length; i < len; i++) {
       this.obj.lines[i].updatePosition();
     }
-    if (this.findEquilibrium() || this.obj.movementStopped) {
-      this.moving = false;
-      return;
+    if (!this.isRotating) {
+      if (this.findEquilibrium() || this.obj.movementStopped) {
+        this.moving = false;
+        this.isRotating = true;
+      }
+    } else {
+      // no rotation if active node is root node (initial state)
+      if (this.obj.activeNode.parent) {
+        var nodes = this.obj.nodes;
+        for (var i = 0; i < nodes.length; i++) {
+          if (nodes[i].rotate()) {
+            return;
+          }
+        }
+      } else {
+        this.isRotating = false;
+        return;
+      }
     }
     setTimeout(function () {
       mynode.animateLoop();
@@ -202,7 +220,7 @@
     if (!this.hasPosition) {
       this.x = this.options.mapArea.x / 2;
       this.y = this.options.mapArea.y / 2;
-      this.el.css({'left': this.x + "px", 'top': this.y + "px"});
+      this.el.css({ 'left': this.x + "px", 'top': this.y + "px" });
       this.hasPosition = true;
     }
     // are my children positioned?  if not, lay out my children around me
@@ -214,12 +232,50 @@
           this.x = (50 * Math.cos(angle)) + parent.x;
           this.y = (50 * Math.sin(angle)) + parent.y;
           this.hasPosition = true;
-          this.el.css({'left': this.x + "px", 'top': this.y + "px"});
+          this.el.css({ 'left': this.x + "px", 'top': this.y + "px" });
         }
       }
     });
     // update my position
     return this.updatePosition();
+  };
+
+  Node.prototype.rotate = function () {
+    var nodes = this.obj.nodes;
+    var showx, showy;
+    for (var i = 0; i < nodes.length; i++) {
+      if (nodes[i] === this) {
+        continue;
+      }
+      if (!nodes[i].visible) {
+        continue;
+      }
+      if (this === this.obj.activeNode) {
+        continue;
+      }
+      // on tourne autour du node actif
+      if (nodes[i] === this.obj.activeNode) {
+        var dx = this.x - this.obj.activeNode.x;
+        var dy = this.y - this.obj.activeNode.y;
+        if (this === this.obj.activeNode.parent) {
+          if (dx < 0 && Math.abs(dy) < 42) {
+            this.isRotating = false;
+            return true;
+          }
+        }
+        var angle = 1 * Math.PI / 180.0;
+        //apply velocity vector
+        this.x = Math.cos(angle) * (this.x - nodes[i].x) - Math.sin(angle) * (this.y - nodes[i].y) + nodes[i].x;
+        this.y = Math.sin(angle) * (this.x - nodes[i].x) + Math.cos(angle) * (this.y - nodes[i].y) + nodes[i].y;
+        this.x = Math.min(this.options.mapArea.x, Math.max(1, this.x));
+        this.y = Math.min(this.options.mapArea.y, Math.max(1, this.y));
+        // display
+        showx = this.x - (this.el.width() / 2);
+        showy = this.y - (this.el.height() / 2) - 10;
+        this.el.css({ 'left': showx + "px", 'top': showy + "px" });
+      }
+    }
+    return false;
   };
 
   // updatePosition returns a boolean stating whether it's been static
@@ -236,6 +292,7 @@
 
     //apply accelerations
     forces = this.getForceVector();
+
     this.dx += forces.x * this.options.timeperiod;
     this.dy += forces.y * this.options.timeperiod;
 
@@ -250,6 +307,7 @@
     if (Math.abs(this.dy) < this.options.minSpeed) {
       this.dy = 0;
     }
+
     if (Math.abs(this.dx) + Math.abs(this.dy) === 0) {
       return true;
     }
@@ -261,7 +319,7 @@
     // display
     showx = this.x - (this.el.width() / 2);
     showy = this.y - (this.el.height() / 2) - 10;
-    this.el.css({'left': showx + "px", 'top': showy + "px"});
+    this.el.css({ 'left': showx + "px", 'top': showy + "px" });
     return false;
   };
 
@@ -281,14 +339,16 @@
       if (!nodes[i].visible) {
         continue;
       }
+
       // Repulsive force (coulomb's law)
       x1 = (nodes[i].x - this.x);
       y1 = (nodes[i].y - this.y);
+
       //adjust for variable node size
-//    var nodewidths = (($(nodes[i]).width() + this.el.width())/2);
+      //    var nodewidths = (($(nodes[i]).width() + this.el.width())/2);
       dist = Math.sqrt((x1 * x1) + (y1 * y1));
-//      var myrepulse = this.options.repulse;
-//      if (this.parent==nodes[i]) myrepulse=myrepulse*10;  //parents stand further away
+      //      var myrepulse = this.options.repulse;
+      //      if (this.parent==nodes[i]) myrepulse=myrepulse*10;  //parents stand further away
       if (Math.abs(dist) < 500) {
         if (x1 === 0) {
           theta = Math.PI / 2;
@@ -297,6 +357,7 @@
           theta = Math.atan(y1 / x1);
           xsign = x1 / Math.abs(x1);
         }
+
         // force is based on radial distance
         f = (this.options.repulse * 500) / (dist * dist);
         fx += -f * Math.cos(theta) * xsign;
@@ -348,6 +409,7 @@
           theta = Math.atan(y1 / x1);
           xsign = x1 / Math.abs(x1);
         }
+
         // force is based on radial distance
         f = (this.options.attract * dist) / 10000;
         fx += f * Math.cos(theta) * xsign;
@@ -370,6 +432,7 @@
           xsign = x1 / Math.abs(x1);
           theta = Math.atan(y1 / x1);
         }
+
         // force is based on radial distance
         f = (0.1 * this.options.attract * dist * CENTRE_FORCE) / 1000;
         fx += f * Math.cos(theta) * xsign;
@@ -419,8 +482,6 @@
     this.el.remove();
   };
 
-
-
   // Define all Line related functions.
   Line = function (obj, startNode, endNode) {
     this.obj = obj;
@@ -439,7 +500,7 @@
     this.color = (this.obj.activeNode.parent === this.start || this.obj.activeNode.parent === this.end) ? "red" : "blue";
     this.strokeStyle = "#FFF";
 
-    this.obj.canvas.path("M" + this.start.x + ' ' + this.start.y + "L" + this.end.x + ' ' + this.end.y).attr({'stroke': this.strokeStyle, 'opacity': 0.2, 'stroke-width': '5px'});
+    this.obj.canvas.path("M" + this.start.x + ' ' + this.start.y + "L" + this.end.x + ' ' + this.end.y);
   };
 
   $.fn.addNode = function (parent, name, options) {
@@ -458,9 +519,9 @@
 
   $.fn.removeNode = function (name) {
     return this.each(function () {
-//      if (!!this.mindmapInit) return false;
+      //      if (!!this.mindmapInit) return false;
       //remove a node matching the anme
-//      alert(name+' removed');
+      //      alert(name+' removed');
     });
   };
 
@@ -477,7 +538,7 @@
         y: -1
       },
       canvasError: 'alert',
-      minSpeed: 0.05,
+      minSpeed: 0.1,
       maxForce: 0.1,
       showSublines: false,
       updateIterationCount: 20,
@@ -520,61 +581,61 @@
       $(this).keyup(function (event) {
         var newNode, i, activeParent = mindmap.activeNode.parent;
         switch (event.which) {
-        case 33: // PgUp
-        case 38: // Up, move to parent
-          if (activeParent) {
-            activeParent.el.click();
-          }
-          break;
-        case 13: // Enter (change to insert a sibling)
-        case 34: // PgDn
-        case 40: // Down, move to first child
-          if (mindmap.activeNode.children.length) {
-            mindmap.activeNode.children[0].el.click();
-          }
-          break;
-        case 37: // Left, move to previous sibling
-          if (activeParent) {
-            newNode = null;
-            if (activeParent.children[0] === mindmap.activeNode) {
-              newNode = activeParent.children[activeParent.children.length - 1];
-            } else {
-              for (i = 1; i < activeParent.children.length; i++) {
-                if (activeParent.children[i] === mindmap.activeNode) {
-                  newNode = activeParent.children[i - 1];
+          case 33: // PgUp
+          case 38: // Up, move to parent
+            if (activeParent) {
+              activeParent.el.click();
+            }
+            break;
+          case 13: // Enter (change to insert a sibling)
+          case 34: // PgDn
+          case 40: // Down, move to first child
+            if (mindmap.activeNode.children.length) {
+              mindmap.activeNode.children[0].el.click();
+            }
+            break;
+          case 37: // Left, move to previous sibling
+            if (activeParent) {
+              newNode = null;
+              if (activeParent.children[0] === mindmap.activeNode) {
+                newNode = activeParent.children[activeParent.children.length - 1];
+              } else {
+                for (i = 1; i < activeParent.children.length; i++) {
+                  if (activeParent.children[i] === mindmap.activeNode) {
+                    newNode = activeParent.children[i - 1];
+                  }
                 }
               }
-            }
-            if (newNode) {
-              newNode.el.click();
-            }
-          }
-          break;
-        case 39: // Right, move to next sibling
-          if (activeParent) {
-            newNode = null;
-            if (activeParent.children[activeParent.children.length - 1] === mindmap.activeNode) {
-              newNode = activeParent.children[0];
-            } else {
-              for (i = activeParent.children.length - 2; i >= 0; i--) {
-                if (activeParent.children[i] === mindmap.activeNode) {
-                  newNode = activeParent.children[i + 1];
-                }
+              if (newNode) {
+                newNode.el.click();
               }
             }
-            if (newNode) {
-              newNode.el.click();
+            break;
+          case 39: // Right, move to next sibling
+            if (activeParent) {
+              newNode = null;
+              if (activeParent.children[activeParent.children.length - 1] === mindmap.activeNode) {
+                newNode = activeParent.children[0];
+              } else {
+                for (i = activeParent.children.length - 2; i >= 0; i--) {
+                  if (activeParent.children[i] === mindmap.activeNode) {
+                    newNode = activeParent.children[i + 1];
+                  }
+                }
+              }
+              if (newNode) {
+                newNode.el.click();
+              }
             }
-          }
-          break;
-        case 45: // Ins, insert a child
-          break;
-        case 46: // Del, delete this node
-          break;
-        case 27: // Esc, cancel insert
-          break;
-        case 83: // 'S', save
-          break;
+            break;
+          case 45: // Ins, insert a child
+            break;
+          case 46: // Del, delete this node
+            break;
+          case 27: // Esc, cancel insert
+            break;
+          case 83: // 'S', save
+            break;
         }
         return false;
       });
