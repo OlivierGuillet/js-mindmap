@@ -58,7 +58,9 @@
   var TIMEOUT = 4,  // movement timeout in seconds
     CENTRE_FORCE = 3,  // strength of attraction to the centre by the active node
     Node,
-    Line;
+    Line,
+    isRotating = false,
+    sens = 0;
 
   // Define all Node related functions.
   Node = function (obj, name, parent, opts) {
@@ -97,7 +99,6 @@
     this.dx = 0;
     this.dy = 0;
     this.hasPosition = false;
-    this.isRotating = false;
 
     this.content = []; // array of content elements to display onclick;
 
@@ -143,11 +144,14 @@
       thisnode.obj.movementStopped = true;
     }, TIMEOUT * 1000);
 
+    setTimeout(function () {
+      isRotating = true;
+    }, 100);
+
     if (this.moving) {
       return;
     }
     this.moving = true;
-    //this.isRotating = true;
     this.obj.movementStopped = false;
     this.animateLoop();
   };
@@ -160,28 +164,12 @@
     for (i = 0, len = this.obj.lines.length; i < len; i++) {
       this.obj.lines[i].updatePosition();
     }
-    if (!this.isRotating) {
-      if (this.findEquilibrium() || this.obj.movementStopped) {
-        this.moving = false;
-        this.isRotating = true;
-      }
-    } else {
-      // no rotation if active node is root node (initial state)
-      if (this.obj.activeNode.parent) {
-        var nodes = this.obj.nodes;
-        for (var i = 0; i < nodes.length; i++) {
-          if (nodes[i].rotate()) {
-            return;
-          }
-        }
-      } else {
-        this.isRotating = false;
-        return;
-      }
+    if (this.findEquilibrium() || this.obj.movementStopped) {
+      mynode.moving = false;
+      isRotating = false;
+      return;
     }
-    setTimeout(function () {
-      mynode.animateLoop();
-    }, 10);
+    requestAnimationFrame(this.animateLoop.bind(this));
   };
 
   // find the right position for this node
@@ -240,44 +228,45 @@
     return this.updatePosition();
   };
 
-  Node.prototype.rotate = function () {
-    var nodes = this.obj.nodes;
-    var showx, showy;
-    for (var i = 0; i < nodes.length; i++) {
-      if (nodes[i] === this) {
-        continue;
-      }
-      if (!nodes[i].visible) {
-        continue;
-      }
-      if (this === this.obj.activeNode) {
-        continue;
-      }
-      // on tourne autour du node actif
-      if (nodes[i] === this.obj.activeNode) {
-        var dx = this.x - this.obj.activeNode.x;
-        var dy = this.y - this.obj.activeNode.y;
-        if (this === this.obj.activeNode.parent) {
-          if (dx < 0 && Math.abs(dy) < 42) {
-            this.isRotating = false;
-            return true;
-          }
+  /*
+    Node.prototype.rotate = function () {
+      var nodes = this.obj.nodes;
+      var showx, showy;
+      for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i] === this) {
+          continue;
         }
-        var angle = 1 * Math.PI / 180.0;
-        //apply velocity vector
-        this.x = Math.cos(angle) * (this.x - nodes[i].x) - Math.sin(angle) * (this.y - nodes[i].y) + nodes[i].x;
-        this.y = Math.sin(angle) * (this.x - nodes[i].x) + Math.cos(angle) * (this.y - nodes[i].y) + nodes[i].y;
-        this.x = Math.min(this.options.mapArea.x, Math.max(1, this.x));
-        this.y = Math.min(this.options.mapArea.y, Math.max(1, this.y));
-        // display
-        showx = this.x - (this.el.width() / 2);
-        showy = this.y - (this.el.height() / 2) - 10;
-        this.el.css({ 'left': showx + "px", 'top': showy + "px" });
+        if (!nodes[i].visible) {
+          continue;
+        }
+        if (this === this.obj.activeNode) {
+          continue;
+        }
+        // on tourne autour du node actif
+        if (nodes[i] === this.obj.activeNode) {
+          var dx = this.x - this.obj.activeNode.x;
+          var dy = this.y - this.obj.activeNode.y;
+          if (this === this.obj.activeNode.parent) {
+            if (dx < 0 && Math.abs(dy) < 42) {
+              this.isRotating = false;
+              return true;
+            }
+          }
+          var angle = 1 * Math.PI / 180.0;
+          //apply velocity vector
+          this.x = Math.cos(angle) * (this.x - nodes[i].x) - Math.sin(angle) * (this.y - nodes[i].y) + nodes[i].x;
+          this.y = Math.sin(angle) * (this.x - nodes[i].x) + Math.cos(angle) * (this.y - nodes[i].y) + nodes[i].y;
+          this.x = Math.min(this.options.mapArea.x, Math.max(1, this.x));
+          this.y = Math.min(this.options.mapArea.y, Math.max(1, this.y));
+          // display
+          showx = this.x - (this.el.width() / 2);
+          showy = this.y - (this.el.height() / 2) - 10;
+          this.el.css({ 'left': showx + "px", 'top': showy + "px" });
+        }
       }
-    }
-    return false;
-  };
-
+      return false;
+    };
+  */
   // updatePosition returns a boolean stating whether it's been static
   Node.prototype.updatePosition = function () {
     var forces, showx, showy;
@@ -329,7 +318,43 @@
       fx = 0,
       fy = 0,
       nodes = this.obj.nodes,
-      lines = this.obj.lines;
+      lines = this.obj.lines, distToActive = 0;
+
+    // rotations around active node
+    if (isRotating && this.obj.activeNode.parent) {
+      for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i] === this) {
+          continue;
+        }
+        if (!nodes[i].visible) {
+          continue;
+        }
+        if (this === this.obj.activeNode) {
+          continue;
+        }
+        if (nodes[i] === this.obj.activeNode) {
+          var dx = this.x - this.obj.activeNode.x;
+          var dy = this.y - this.obj.activeNode.y;
+          if (this === this.obj.activeNode.parent) {
+            x1 = (this.obj.activeNode.x - this.x);
+            y1 = (this.obj.activeNode.y - this.y);
+            //distToActive = Math.sqrt((x1 * x1) + (y1 * y1));
+            if (dx < 0 && Math.abs(dy) < 42) {
+              setTimeout(function () {
+                isRotating = false;
+              }, 50);
+              continue;
+            } else {
+              sens = - dy / Math.abs(dy);
+            }
+          }
+          var angle = 4 * Math.PI / 180.0 * sens;
+          //apply velocity vector
+          fx += this.x - (Math.cos(angle) * (this.x - nodes[i].x) - Math.sin(angle) * (this.y - nodes[i].y) + nodes[i].x);
+          fy += this.y - (Math.sin(angle) * (this.x - nodes[i].x) + Math.cos(angle) * (this.y - nodes[i].y) + nodes[i].y);
+        }
+      }
+    }
 
     // Calculate the repulsive force from every other node
     for (i = 0; i < nodes.length; i++) {
@@ -344,12 +369,8 @@
       x1 = (nodes[i].x - this.x);
       y1 = (nodes[i].y - this.y);
 
-      //adjust for variable node size
-      //    var nodewidths = (($(nodes[i]).width() + this.el.width())/2);
       dist = Math.sqrt((x1 * x1) + (y1 * y1));
-      //      var myrepulse = this.options.repulse;
-      //      if (this.parent==nodes[i]) myrepulse=myrepulse*10;  //parents stand further away
-      if (Math.abs(dist) < 500) {
+      if (Math.abs(dist) < 500) {// && Math.abs(distToActive)<150) {
         if (x1 === 0) {
           theta = Math.PI / 2;
           xsign = 0;
@@ -434,7 +455,7 @@
         }
 
         // force is based on radial distance
-        f = (0.1 * this.options.attract * dist * CENTRE_FORCE) / 1000;
+        f = (0.2 * this.options.attract * dist * CENTRE_FORCE) / 1000;
         fx += f * Math.cos(theta) * xsign;
         fy += f * Math.sin(theta) * xsign;
       }
@@ -506,7 +527,6 @@
   $.fn.addNode = function (parent, name, options) {
     var obj = this[0],
       node = obj.nodes[obj.nodes.length] = new Node(obj, name, parent, options);
-    console.log(obj.root);
     obj.root.animateToStatic();
     return node;
   };
@@ -519,9 +539,6 @@
 
   $.fn.removeNode = function (name) {
     return this.each(function () {
-      //      if (!!this.mindmapInit) return false;
-      //remove a node matching the anme
-      //      alert(name+' removed');
     });
   };
 
@@ -529,7 +546,7 @@
     // Define default settings.
     options = $.extend({
       attract: 15,
-      repulse: 6,
+      repulse: 8,
       damping: 0.55,
       timeperiod: 10,
       wallrepulse: 0.4,
@@ -539,7 +556,7 @@
       },
       canvasError: 'alert',
       minSpeed: 0.1,
-      maxForce: 0.1,
+      maxForce: 0.2,
       showSublines: false,
       updateIterationCount: 20,
       showProgressive: true,
