@@ -70,9 +70,23 @@
     if (opts.url) {
       this.url = opts.url;
     }
+    if (opts.picto) {
+      this.picto = opts.picto;
+    }
+    if (opts.color) {
+      this.color = opts.color;
+    }
 
     // create the element for display
-    this.el = $('<a href="' + this.href + '">' + this.name + '</a>').addClass('node');
+    //this.el = $('<a href="' + this.href + '">' + this.name + '</a>').addClass('node');
+    if (opts.root) {
+      this.el = $('<a href=""><img src="spiderman.png" border="0"></a>').addClass('node');
+    } else if (opts.picto) {
+      //this.el = $('<a href=""><img src="picto_economique.png" border="0"><div>Texte sur</br>deux lignes</div></a>').addClass('node');
+      this.el = $('<a href="" style="background:' + this.color + ';"><img src="' + this.picto + '" border="0"><div>' + this.name + '</div></a>').addClass('node');
+    } else {
+      this.el = $('<a href="" style="background:' + this.color + ';"><div style="margin-top:60px;">' + this.name + '</div></a>').addClass('node');
+    }
     $('body').prepend(this.el);
 
     if (!parent) {
@@ -110,23 +124,27 @@
       }
     });
 
-    this.el.click(function () {
-      if (obj.activeNode) {
-        obj.activeNode.el.removeClass('active');
-        if (obj.activeNode.parent) {
-          obj.activeNode.parent.el.removeClass('activeparent');
+    this.el.click(function (eventObject) {
+      if (thisnode.children.length > 1) {
+        if (obj.activeNode) {
+          obj.activeNode.el.removeClass('active');
+          if (obj.activeNode.parent) {
+            obj.activeNode.parent.el.removeClass('activeparent');
+          }
         }
+        if (typeof opts.onclick === 'function') {
+          opts.onclick(thisnode);
+        }
+        obj.activeNode = thisnode;
+        obj.activeNode.el.addClass('active');
+        if (obj.activeNode.parent) {
+          obj.activeNode.parent.el.addClass('activeparent');
+        }
+        obj.root.animateToStatic();
+        return false;
+      } else {
+        eventObject.stopPropagation();
       }
-      if (typeof opts.onclick === 'function') {
-        opts.onclick(thisnode);
-      }
-      obj.activeNode = thisnode;
-      obj.activeNode.el.addClass('active');
-      if (obj.activeNode.parent) {
-        obj.activeNode.parent.el.addClass('activeparent');
-      }
-      obj.root.animateToStatic();
-      return false;
     });
 
   };
@@ -202,7 +220,7 @@
     if (!this.hasPosition) {
       this.x = this.options.mapArea.x / 2;
       this.y = this.options.mapArea.y / 2;
-      this.el.css({'left': this.x + "px", 'top': this.y + "px"});
+      this.el.css({ 'left': this.x + "px", 'top': this.y + "px" });
       this.hasPosition = true;
     }
     // are my children positioned?  if not, lay out my children around me
@@ -214,7 +232,7 @@
           this.x = (50 * Math.cos(angle)) + parent.x;
           this.y = (50 * Math.sin(angle)) + parent.y;
           this.hasPosition = true;
-          this.el.css({'left': this.x + "px", 'top': this.y + "px"});
+          this.el.css({ 'left': this.x + "px", 'top': this.y + "px" });
         }
       }
     });
@@ -259,9 +277,14 @@
     this.x = Math.min(this.options.mapArea.x, Math.max(1, this.x));
     this.y = Math.min(this.options.mapArea.y, Math.max(1, this.y));
     // display
-    showx = this.x - (this.el.width() / 2);
-    showy = this.y - (this.el.height() / 2) - 10;
-    this.el.css({'left': showx + "px", 'top': showy + "px"});
+    if (!this.parent) {
+      showx = this.x - (this.el.width() / 2) - 34;
+      showy = this.y - (this.el.height() / 2) - 50;
+    } else {
+      showx = this.x - (this.el.width() / 2) - 12;
+      showy = this.y - (this.el.height() / 2) - 10;
+    }
+    this.el.css({ 'left': showx + "px", 'top': showy + "px" });
     return false;
   };
 
@@ -285,10 +308,10 @@
       x1 = (nodes[i].x - this.x);
       y1 = (nodes[i].y - this.y);
       //adjust for variable node size
-//    var nodewidths = (($(nodes[i]).width() + this.el.width())/2);
+      //    var nodewidths = (($(nodes[i]).width() + this.el.width())/2);
       dist = Math.sqrt((x1 * x1) + (y1 * y1));
-//      var myrepulse = this.options.repulse;
-//      if (this.parent==nodes[i]) myrepulse=myrepulse*10;  //parents stand further away
+      //      var myrepulse = this.options.repulse;
+      //      if (this.parent==nodes[i]) myrepulse=myrepulse*10;  //parents stand further away
       if (Math.abs(dist) < 500) {
         if (x1 === 0) {
           theta = Math.PI / 2;
@@ -439,18 +462,19 @@
     this.color = (this.obj.activeNode.parent === this.start || this.obj.activeNode.parent === this.end) ? "red" : "blue";
     this.strokeStyle = "#FFF";
 
-    this.obj.canvas.path("M" + this.start.x + ' ' + this.start.y + "L" + this.end.x + ' ' + this.end.y).attr({'stroke': this.strokeStyle, 'opacity': 0.2, 'stroke-width': '5px'});
+    this.obj.canvas.path("M" + this.start.x + ' ' + this.start.y + "L" + this.end.x + ' ' + this.end.y);
   };
 
   $.fn.addNode = function (parent, name, options) {
-    var obj = this[0],
-      node = obj.nodes[obj.nodes.length] = new Node(obj, name, parent, options);
+    var obj = this[0];
+    var node = obj.nodes[obj.nodes.length] = new Node(obj, name, parent, options);
     console.log(obj.root);
     obj.root.animateToStatic();
     return node;
   };
 
   $.fn.addRootNode = function (name, opts) {
+    opts.root = true;
     var node = this[0].nodes[0] = new Node(this[0], name, null, opts);
     this[0].root = node;
     return node;
@@ -458,18 +482,18 @@
 
   $.fn.removeNode = function (name) {
     return this.each(function () {
-//      if (!!this.mindmapInit) return false;
+      //      if (!!this.mindmapInit) return false;
       //remove a node matching the anme
-//      alert(name+' removed');
+      //      alert(name+' removed');
     });
   };
 
   $.fn.mindmap = function (options) {
     // Define default settings.
     options = $.extend({
-      attract: 15,
-      repulse: 6,
-      damping: 0.55,
+      attract: 10,
+      repulse: 10,
+      damping: 0.7,
       timeperiod: 10,
       wallrepulse: 0.4,
       mapArea: {
@@ -477,12 +501,12 @@
         y: -1
       },
       canvasError: 'alert',
-      minSpeed: 0.05,
+      minSpeed: 0.1,
       maxForce: 0.1,
       showSublines: false,
       updateIterationCount: 20,
       showProgressive: true,
-      centreOffset: 100,
+      centreOffset: 0,
       timer: 0
     }, options);
 
@@ -520,61 +544,61 @@
       $(this).keyup(function (event) {
         var newNode, i, activeParent = mindmap.activeNode.parent;
         switch (event.which) {
-        case 33: // PgUp
-        case 38: // Up, move to parent
-          if (activeParent) {
-            activeParent.el.click();
-          }
-          break;
-        case 13: // Enter (change to insert a sibling)
-        case 34: // PgDn
-        case 40: // Down, move to first child
-          if (mindmap.activeNode.children.length) {
-            mindmap.activeNode.children[0].el.click();
-          }
-          break;
-        case 37: // Left, move to previous sibling
-          if (activeParent) {
-            newNode = null;
-            if (activeParent.children[0] === mindmap.activeNode) {
-              newNode = activeParent.children[activeParent.children.length - 1];
-            } else {
-              for (i = 1; i < activeParent.children.length; i++) {
-                if (activeParent.children[i] === mindmap.activeNode) {
-                  newNode = activeParent.children[i - 1];
+          case 33: // PgUp
+          case 38: // Up, move to parent
+            if (activeParent) {
+              activeParent.el.click();
+            }
+            break;
+          case 13: // Enter (change to insert a sibling)
+          case 34: // PgDn
+          case 40: // Down, move to first child
+            if (mindmap.activeNode.children.length) {
+              mindmap.activeNode.children[0].el.click();
+            }
+            break;
+          case 37: // Left, move to previous sibling
+            if (activeParent) {
+              newNode = null;
+              if (activeParent.children[0] === mindmap.activeNode) {
+                newNode = activeParent.children[activeParent.children.length - 1];
+              } else {
+                for (i = 1; i < activeParent.children.length; i++) {
+                  if (activeParent.children[i] === mindmap.activeNode) {
+                    newNode = activeParent.children[i - 1];
+                  }
                 }
               }
-            }
-            if (newNode) {
-              newNode.el.click();
-            }
-          }
-          break;
-        case 39: // Right, move to next sibling
-          if (activeParent) {
-            newNode = null;
-            if (activeParent.children[activeParent.children.length - 1] === mindmap.activeNode) {
-              newNode = activeParent.children[0];
-            } else {
-              for (i = activeParent.children.length - 2; i >= 0; i--) {
-                if (activeParent.children[i] === mindmap.activeNode) {
-                  newNode = activeParent.children[i + 1];
-                }
+              if (newNode) {
+                newNode.el.click();
               }
             }
-            if (newNode) {
-              newNode.el.click();
+            break;
+          case 39: // Right, move to next sibling
+            if (activeParent) {
+              newNode = null;
+              if (activeParent.children[activeParent.children.length - 1] === mindmap.activeNode) {
+                newNode = activeParent.children[0];
+              } else {
+                for (i = activeParent.children.length - 2; i >= 0; i--) {
+                  if (activeParent.children[i] === mindmap.activeNode) {
+                    newNode = activeParent.children[i + 1];
+                  }
+                }
+              }
+              if (newNode) {
+                newNode.el.click();
+              }
             }
-          }
-          break;
-        case 45: // Ins, insert a child
-          break;
-        case 46: // Del, delete this node
-          break;
-        case 27: // Esc, cancel insert
-          break;
-        case 83: // 'S', save
-          break;
+            break;
+          case 45: // Ins, insert a child
+            break;
+          case 46: // Del, delete this node
+            break;
+          case 27: // Esc, cancel insert
+            break;
+          case 83: // 'S', save
+            break;
         }
         return false;
       });
